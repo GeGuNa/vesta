@@ -5,14 +5,14 @@
  *
  * Reads, manipulate configs
  *
- * @author Malishev Dima <dima.malishev@gmail.com>
  * @author vesta, http://vestacp.com/
+ * @author Dmitry Malishev <dima.malishev@gmail.com>
  * @copyright vesta 2010-2011
  */
 class Config 
 {
     
-    protected $_config = array();   
+    protected $_config      = array();   
     static public $instance = null;
     
     /**

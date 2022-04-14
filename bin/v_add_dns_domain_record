@@ -1,23 +1,31 @@
 #!/bin/bash
-# info: adding dns domain record
+# info: add dns domain record
+# options: user domain record type value [id]
+#
+# The call is used for adding new DNS record. Complex records of TXT, MX and
+# SRV types can be used by a filling in the 'value' argument. The function also
+# gets an id parameter for definition of certain record identifier or for the
+# regulation of records.
+
 
 #----------------------------------------------------------#
 #                    Variable&Function                     #
 #----------------------------------------------------------#
 
 # Argument defenition
-user="$1"
+user=$1
 domain=$(idn -t --quiet -u "$2" )
 domain_idn=$(idn -t --quiet -a "$domain")
 record=$(idn -t --quiet -u "$3" )
 rtype=$(echo "$4"| tr '[:lower:]' '[:upper:]')
-value=$(idn -t --quiet -u "$5" )
-id="$6"
+dvalue=$(idn -t --quiet -u "$5" )
+id=$6
 
 # Importing variables
 source $VESTA/conf/vars.conf
-source $V_FUNC/shared_func.sh
-source $V_FUNC/domain_func.sh
+source $V_CONF/vesta.conf
+source $V_FUNC/shared.func
+source $V_FUNC/domain.func
 
 
 #----------------------------------------------------------#
@@ -28,7 +36,7 @@ source $V_FUNC/domain_func.sh
 check_args '5' "$#" 'user domain record type value [id]'
 
 # Checking argument format
-format_validation 'user' 'domain' 'record' 'rtype'
+format_validation 'user' 'domain' 'record' 'rtype' 'dvalue'
 
 # Checking web system is enabled
 is_system_enabled 'dns'
@@ -62,10 +70,10 @@ is_dns_record_free
 #----------------------------------------------------------#
 
 # Defining zone path
-zone="$V_USERS/$user/zones/$domain"
+zone="$V_USERS/$user/dns/$domain"
 
 # Adding record
-dns_rec="ID='$id' RECORD='$record' TYPE='$rtype' VALUE='$value'"
+dns_rec="ID='$id' RECORD='$record' TYPE='$rtype' VALUE='$dvalue'"
 dns_rec="$dns_rec SUSPEND='no' DATE='$V_DATE'"
 echo "$dns_rec" >> $zone 
 
@@ -84,7 +92,7 @@ update_domain_zone
 restart_schedule 'dns'
 
 # Logging
-log_history "$V_EVENT" "v_del_dns_domain_record $user $domain $id"
+log_history "$V_EVENT" "v_delete_dns_domain_record $user $domain $id"
 log_event 'system' "$V_EVENT"
 
-exit $OK
+exit

@@ -1,13 +1,11 @@
 server {
     listen      %ip%:%proxy_port%;
     server_name %domain_idn% %alias_idn%;
-    server_name_in_redirect off;
-   %elog%error_log  /var/log/httpd/domains/%domain%.error.log error;
+    %elog%error_log  /var/log/httpd/domains/%domain%.error.log error;
 
     location / {
-        proxy_pass     http://%ip%:%web_port%;
-
-        location ~* ^.+\.(%extentions%)$ {
+        %proxy_string%
+        location ~* ^.+\.(%nginx_extentions%)$ {
             root           %docroot%;
             access_log     /var/log/httpd/domains/%domain%.log combined;
             access_log     /var/log/httpd/domains/%domain%.bytes bytes;
@@ -17,16 +15,19 @@ server {
     }
 
     location /error/ {
-        alias   %home%/%user%/domains/%domain%/document_errors/;
+        alias   %home%/%user%/web/%domain%/document_errors/;
     }
 
     location @fallback {
         proxy_pass      http://%ip%:%web_port%;
     }
 
-    location ~ /\.ht   {deny all;}
-    location ~ /.svn/  {deny all;}
+    location ~ /\.ht    {return 404;}
+    location ~ /\.svn/  {return 404;}
+    location ~ /\.git/  {return 404;}
+    location ~ /\.hg/   {return 404;}
+    location ~ /\.bzr/  {return 404;}
 
-    include %home%/%user%/conf/%domain%.nginx.*;
+    include %home%/%user%/conf/nginx.%domain%.conf*;
 }
 

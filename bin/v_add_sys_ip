@@ -1,42 +1,49 @@
 #!/bin/bash
-# info: adding system ip
+# info: add system ip address
+# options: ip mask [interface] [user] [ip_status] [ip_name]
+#
+# The function adds ip address into a system. It also creates rc scripts. You
+# can specify ip name which will be used as root domain for temporary aliases.
+# For example, if you set a1.myhosting.com as name, each new domain created on
+# this  ip will automaticaly receive alias $domain.a1.myhosting.com. Of course
+# you must have wildcard record *.a1.myhosting.com pointed to ip. This feature 
+# is very handy when customer wants to test domain before dns migration.
+
 
 #----------------------------------------------------------#
 #                    Variable&Function                     #
 #----------------------------------------------------------#
 
 # Argument defenition
-ip="$1"
-mask="$2"
+ip=$1
+mask=$2
 interface="${3-eth0}"
-owner="${4-vesta}"
+user="${4-vesta}"
 ip_status="${5-shared}"
-ip_name="$6"
+ip_name=$6
 
 # Importing variables
 source $VESTA/conf/vars.conf
-source $V_FUNC/shared_func.sh
-source $V_FUNC/ip_func.sh
-source $V_FUNC/domain_func.sh    # for namehosting
+source $V_CONF/vesta.conf
+source $V_FUNC/shared.func
+source $V_FUNC/ip.func
+source $V_FUNC/domain.func    # for namehosting
 
 #----------------------------------------------------------#
 #                    Verifications                         #
 #----------------------------------------------------------#
 
 # Checking arg number
-check_args '2' "$#" 'ip mask [interface] [owner] [ip_status] [ip_name]'
+check_args '2' "$#" 'ip mask [interface] [user] [ip_status] [ip_name]'
 
 # Checking argument format
-format_validation 'ip' 'mask' 'interface'
+format_validation 'ip' 'mask' 'interface' 'user'
 
 # Checking system ip
 is_sys_ip_free
 
-# Checking owner
-if [ ! -z "$owner" ]; then
-    format_validation 'user'
-    is_user_valid "$owner"
-fi
+# Checking user
+is_user_valid "$user"
 
 # Checking ip_status
 if [ ! -z "$ip_status" ]; then
@@ -64,7 +71,7 @@ iconf='/etc/sysconfig/network-scripts/ifcfg'
 rconf='/etc/httpd/conf.d/rpaf.conf'
 
 # Adding ip
-ifconfig "$iface" "$ip" netmask "$mask"
+/sbin/ifconfig "$iface" "$ip" netmask "$mask"
 
 # Adding startup script
 ip_add_startup
@@ -84,10 +91,7 @@ namehost_ip_support
 #----------------------------------------------------------#
 
 # Updating user conf
-if [ ! -z "$owner" ]; then
-    user="$owner"
-    increase_user_value "$user" '$IP_OWNED'
-fi
+increase_user_value "$user" '$IP_OWNED'
 
 # Adding task to the vesta pipe
 if [ "$web_restart" = 'yes' ]; then
@@ -97,4 +101,4 @@ fi
 # Logging
 log_event 'system' "$V_EVENT"
 
-exit $OK
+exit

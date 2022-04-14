@@ -1,20 +1,27 @@
 #!/bin/bash
-# info: Getting web domain value
+# info: get web domain value
+# options: user domain key
+#
+# The function is intended for obtaining a domain value by the key. This call
+# is useful for arranging composite queries. The answer is displayed only in
+# raw form; output formats aren't supported.
+
 
 #----------------------------------------------------------#
 #                    Variable&Function                     #
 #----------------------------------------------------------#
 
 # Argument defenition
-user="$1"
+user=$1
 domain=$(idn -t --quiet -u "$2" )
 domain_idn=$(idn -t --quiet -a "$domain")
 key=$(echo "$3"| tr '[:lower:]' '[:upper:]'|sed -e "s/^/$/")
 
 # Importing variables
 source $VESTA/conf/vars.conf
-source $V_FUNC/shared_func.sh
-source $V_FUNC/domain_func.sh
+source $V_CONF/vesta.conf
+source $V_FUNC/shared.func
+source $V_FUNC/domain.func
 
 
 #----------------------------------------------------------#
@@ -37,17 +44,14 @@ is_user_suspended
 is_web_domain_valid
 
 # Checking domain is not suspened
-is_domain_suspended 'web_domains'
+is_domain_suspended 'web'
 
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Checking key
 value=$(get_web_domain_value "$key")
-
-# Printing value
 echo "$value"
 
 
@@ -55,7 +59,4 @@ echo "$value"
 #                       Vesta                              #
 #----------------------------------------------------------#
 
-# Logging
-log_event 'system' "$V_EVENT"
-
-exit  $OK
+exit

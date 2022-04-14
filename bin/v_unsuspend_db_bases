@@ -1,17 +1,22 @@
 #!/bin/bash
-# info: Unsuspending databses
+# info: unsuspend databases
+# options: user
+#
+# The function for unsuspending all user's databases.
+
 
 #----------------------------------------------------------#
 #                    Variable&Function                     #
 #----------------------------------------------------------#
 
 # Argument defenition
-user="$1"
+user=$1
 
 # Importing variables
 source $VESTA/conf/vars.conf
-source $V_FUNC/shared_func.sh
-source $V_FUNC/db_func.sh
+source $V_CONF/vesta.conf
+source $V_FUNC/shared.func
+source $V_FUNC/db.func
 
 
 #----------------------------------------------------------#
@@ -71,4 +76,4 @@ done
 # Logging
 log_event 'system' "$V_EVENT"
 
-exit $OK
+exit

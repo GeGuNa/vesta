@@ -1,0 +1,84 @@
+#!/bin/bash
+# info: delete web domain statistics
+# options: user domain
+#
+# The function of deleting site's system of statistics. Its type is
+# automatically chooses from client's configuration file.
+
+
+#----------------------------------------------------------#
+#                    Variable&Function                     #
+#----------------------------------------------------------#
+
+# Argument defenition
+user=$1
+domain=$(idn -t --quiet -u "$2" )
+
+# Importing variables
+source $VESTA/conf/vars.conf
+source $V_CONF/vesta.conf
+source $V_FUNC/shared.func
+source $V_FUNC/domain.func
+
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+# Checking arg number
+check_args '2' "$#" 'user domain'
+
+# Checking argument format
+format_validation 'user' 'domain'
+
+# Checking web system is enabled
+is_system_enabled 'web'
+
+# Checking user
+is_user_valid
+
+# Checking user is active
+is_user_suspended
+
+# Checking domain exist
+is_web_domain_valid
+
+# Checking domain is not suspened
+is_domain_suspended 'web'
+
+# Checking stats enabled
+is_web_domain_value_exist '$STATS'
+
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Defining statistic type
+type=$(get_web_domain_value '$STATS')
+
+# Defining statistic dir
+stat_dir="$V_HOME/$user/web/$domain/stats"
+
+# Deleting dir content
+rm -rf $stat_dir/*
+
+# Deleting config
+rm -f $V_HOME/$user/conf/$type.$domain.conf
+
+
+#----------------------------------------------------------#
+#                       Vesta                              #
+#----------------------------------------------------------#
+
+# Deleting pipe command
+sed -i "/ $domain$/d" $V_QUEUE/stats.pipe
+
+# Deleting stats
+update_web_domain_value '$STATS' ''
+
+# Logging
+log_history "$V_EVENT" "v_add_web_domain_stat $user $doman $type"
+log_event 'system' "$V_EVENT"
+
+exit

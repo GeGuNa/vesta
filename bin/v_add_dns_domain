@@ -1,25 +1,34 @@
 #!/bin/bash
-# info: adding dns domain
+# info: add dns domain
+# options: user domain ip [template] [exp] [soa] [ttl]
+#
+# The function adds DNS zone with records defined in the template. If the exp
+# argument isn't stated, the expiration date value will be set to next year.
+# The soa argument is responsible for the relevant record. By default the first
+# user's NS server is used. TTL is set as common for the zone and for all of
+# its records with a default value of 14400 seconds.
+
 
 #----------------------------------------------------------#
 #                    Variable&Function                     #
 #----------------------------------------------------------#
 
 # Argument defenition
-user="$1"
+user=$1
 domain=$(idn -t --quiet -u "$2" )
 domain_idn=$(idn -t --quiet -a "$domain")
-ip="$3"
-template="${4-default}"
-next_year=$(date +%d-%m-%y -d "+ 1 year")
-exp="${5-$next_year}"
-soa="$6"
-ttl="${7-14400}"
+ip=$3
+template=${4-default}
+next_year=$(date +%F -d "+ 1 year")
+exp=${5-$next_year}
+soa=$6
+ttl=${7-14400}
 
 # Importing variables
 source $VESTA/conf/vars.conf
-source $V_FUNC/shared_func.sh
-source $V_FUNC/domain_func.sh
+source $V_CONF/vesta.conf
+source $V_FUNC/shared.func
+source $V_FUNC/domain.func
 
 
 #----------------------------------------------------------#
@@ -43,7 +52,7 @@ is_user_suspended
 
 # Checking domain
 is_domain_new 'quiet'
-if [ $? -ne $OK ]; then
+if [ $? -ne 0 ]; then
 
     # Checking domain owner
     is_domain_owner
@@ -64,20 +73,31 @@ is_template_valid 'dns'
 #----------------------------------------------------------#
 
 # Defining variables
-ns1=$(get_user_value '$NS1')
-ns2=$(get_user_value '$NS2')
+i=1
+ns=$(get_user_value '$NS')
+for nameserver in ${ns//,/ };do
+    eval ns$i=$nameserver
+    i=$((i + 1))
+done
+
 if [ -z "$soa" ]; then
     soa="$ns1"
 fi
 
-# Adding zone to zones dir
+# Adding zone to dns dir
 cat $V_DNSTPL/$template.tpl |\
     sed -e "s/%ip%/$ip/g" \
         -e "s/%domain_idn%/$domain_idn/g" \
         -e "s/%domain%/$domain/g" \
         -e "s/%ns1%/$ns1/g" \
         -e "s/%ns2%/$ns2/g" \
-        -e "s/%date%/$V_DATE/g" > $V_USERS/$user/zones/$domain
+        -e "s/%ns3%/$ns3/g" \
+        -e "s/%ns4%/$ns4/g" \
+        -e "s/%ns5%/$ns5/g" \
+        -e "s/%ns6%/$ns6/g" \
+        -e "s/%ns7%/$ns7/g" \
+        -e "s/%ns8%/$ns8/g" \
+        -e "s/%date%/$V_DATE/g" > $V_USERS/$user/dns/$domain
 
 # Adding dns.conf record
 dns_rec="DOMAIN='$domain' IP='$ip' TPL='$template' TTL='$ttl' EXP='$exp'"
@@ -103,7 +123,7 @@ increase_user_value "$user" '$U_DNS_DOMAINS'
 restart_schedule 'dns'
 
 # Logging
-log_history "$V_EVENT" "v_del_dns_domain $user $domain"
+log_history "$V_EVENT" "v_delete_dns_domain $user $domain"
 log_event 'system' "$V_EVENT"
 
-exit $OK
+exit

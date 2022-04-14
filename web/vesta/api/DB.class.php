@@ -3,247 +3,199 @@
 /**
  * DB 
  * 
- * @author Naumov-Socolov <naumov.socolov@gmail.com>
- * @author Malishev Dima <dima.malishev@gmail.com>
  * @author vesta, http://vestacp.com/
- * @copyright vesta 2011
+ * @author Dmitry Malishev <dima.malishev@gmail.com>
+ * @author Dmitry Naumov-Socolov <naumov.socolov@gmail.com>
+ * @copyright vesta 2010-2011
  */
+ 
 class DB extends AjaxHandler 
 {
     
     /**
-     * List entries
+     * Get DB entries
      * 
      * @param Request $request
-     * @return
+     * @return string - Ajax Reply
      */
-    public function getListExecute($request) 
+    public function getListExecute(Request $request) 
     {
-        $_user = 'vesta';
-        $reply = array();        
-        $result = Vesta::execute(Vesta::V_LIST_DB_BASES, array($_user, Config::get('response_type')));
-
-        foreach ($result['data'] as $db => $record)
-        {
-            $reply[$db] = array(
-                'DB' => $db,
-                'USER' => $record['USER'],
-                'HOST' => $record['HOST'],
-                'TYPE' => $record['TYPE'],
-                'U_DISK' => $record['U_DISK'],
-                'SUSPEND' => $record['SUSPEND'],
-                'DATE' => date(Config::get('ui_date_format', strtotime($record['DATE'])))
-            );
+        $user  = $this->getLoggedUser();
+        $reply  = array();
+        $result = Vesta::execute(Vesta::V_LIST_DB_BASES, array($user['uid'], Config::get('response_type')));
+    
+        foreach ($result['data'] as $db => $record) {
+            $type = $record['TYPE'];
+            if (!isset($reply[$type])) {
+                $reply[$type] = array();
+            }
+            $reply[$type][] = array(
+                                'DB'        => $db,
+                                'OWNER'     => $record['USER'],
+                                'USER'      => $record['USER'],
+                                'USERS'     => (array)$record['USER'],
+                                'HOST'      => $record['HOST'],
+                                'TYPE'      => $record['TYPE'],
+                                'U_DISK'    => $record['U_DISK'],
+                                'DISK'      => 2024,
+                                'CHARSET'   => strtolower($record['CHARSET']),
+                                'SUSPEND'   => $record['SUSPEND'],
+                                'DATE'      => $record['DATE']// date(Config::get('ui_date_format', strtotime($record['DATE'])))
+                              );
         }
-        
-        if (!$result['status'])
-        {
+    
+        if (!$result['status']) {
             $this->errors[] = array($result['error_code'] => $result['error_message']);
         }
-        
+
         return $this->reply($result['status'], $reply);
     }
 
     /**
-     * Add entry
+     * Add DB entry
      * 
      * @param Request $request
-     * @return
+     * @return string - Ajax Reply
      */
-    public function addExecute($request) 
+    public function addExecute(Request $request) 
     {
-        $r = new Request();
-        $_s = $r->getSpell();
-        $_user = 'vesta';
-
+        $user   = $this->getLoggedUser();
+        $_s     = $request->getParameter('spell'); 
         $params = array(
-            'USER' => $_user,
-            'DB' => $_s['DB'],
-            'DB_USER' => $_s['DB_USER'],
-            'DB_PASSWORD' => $_s['DB_PASSWORD'],
-            'TYPE' => $_s['TYPE']
-        );
-        if ($_s['HOST']) 
-        {
-            $params['HOST'] = $_s['HOST'];
-        }
+                    'USER'          => $user['uid'],
+                    'DB'            => $_s['DB'],
+                    'DB_USER'       => $_s['USER'],
+                    'DB_PASSWORD'   => $_s['PASSWORD'],
+                    'TYPE'          => $_s['TYPE'],
+                    'HOST'          => $_s['HOST'],
+                    'CHARSET'       => $_s['CHARSET']
+                  );
 
         $result = Vesta::execute(Vesta::V_ADD_DB_BASE, $params);
-
-        if (!$result['status'])
-        {
+        
+        if (!$result['status']) {
             $this->errors[] = array($result['error_code'] => $result['error_message']);
+        }
+
+        if (Utils::getCheckboxBooleanValue($_s['SUSPEND'])) {
+            if($result['status']){
+                $result = array();
+
+                $result = Vesta::execute(Vesta::V_SUSPEND_DB_BASE, array('USER' => $user['uid'], 'JOB' => $_s['DB']));
+                if (!$result['status']) {
+                    $this->status = FALSE;
+                    $this->errors['SUSPEND'] = array($result['error_code'] => $result['error_message']);
+                }   
+            }
         }
 
         return $this->reply($result['status'], $result['data']);
     }
-      
+  
     /**
-     * Delete entry
+     * Delete DB entry
      * 
      * @param Request $request
-     * @return
+     * @return string - Ajax Reply
      */
-    public function delExecute($request) 
+    public function deleteExecute(Request $request) 
     {
-        $r = new Request();
-        $_s = $r->getSpell();
-        $_user = 'vesta';
-
+        $_s    = $request->getParameter('spell');
+        $user  = $this->getLoggedUser();
         $params = array(
-            'USER' => $_user,
-            'DB' => $_user.'_'.$_s['DB']
-        );
-
+                    'USER'  => $user['uid'],
+                    'DB'    => $_s['DB']
+                  );
+    
         $result = Vesta::execute(Vesta::V_DEL_DB_BASE, $params);
-
-        if (!$result['status'])
-        {
+    
+        if (!$result['status']) {
             $this->errors[] = array($result['error_code'] => $result['error_message']);
         }
-
+    
         return $this->reply($result['status'], $result['data']);
     }
-
+  
     /**
-     * Change password
+     * Change Password
      * 
      * @param Request $request
-     * @return
+     * @return string - Ajax Reply
      */
-    public function changePasswordExecute($request)
+    public function changeExecute(Request $request)
     {
-        $r = new Request();
-        $_s = $r->getSpell();
+        $_s = $request->getParameter('spell');
+        $_old = $request->getParameter('old');
+        $_new = $request->getParameter('new');
 
-        $_user = 'vesta';
-
+        $user  = $this->getLoggedUser();
         $result = array();
-        $params = array(
-            'USER' => $_user,
-            'DB' => $_user.'_'.$_s['DB'],
-            'PASSWORD' => $_s['DB_PASSWORD']
-        );
 
-        $result = Vesta::execute(Vesta::V_CHANGE_DB_PASSWORD, $params);
+		$result = array();
+		if(@Utils::getCheckboxBooleanValue($_new['SUSPEND'])){
+			$result = Vesta::execute(Vesta::V_SUSPEND_DB_BASE, array('USER' => $user['uid'], 'DB' => $_new['DB']));
+			return $this->reply($result['status'], $result['error_message']);
+		}
+		elseif(@Utils::getCheckboxBooleanValue($_old['SUSPEND'])){
+			$result = Vesta::execute(Vesta::V_UNSUSPEND_DB_BASE, array('USER' => $user['uid'], 'DB' => $_new['DB']));
+    		if (!$result['status']) {
+    			$this->status = FALSE;
+    			$this->errors['UNSUSPEND'] = array($result['error_code'] => $result['error_message']);
+    			return $this->reply($result['status'], $result['error_message']);
+        	}
+		}
 
-        if (!$result['status'])
-        {
-            $this->errors[] = array($result['error_code'] => $result['error_message']);
-        }
+        if ($_new['PASSWORD'] != Vesta::SAME_PASSWORD && $_new['PASSWORD'] != $_old['PASSWORD']) {
+			$params = array(
+						'USER'      => $user['uid'],
+						'DB'        => $_new['DB'],
+						'PASSWORD'  => $_new['PASSWORD']
+					  );
 
-        return $this->reply($result['status'], $result['data']);
-    }
+			$result = Vesta::execute(Vesta::V_CHANGE_DB_PASSWORD, $params);
     
-    /**
-     * suspend user
-     * 
-     * @param Request $request
-     * @return
-     */
-    public function suspendExecute($request)
-    {
-        $r = new Request();
-        $_s = $r->getSpell();
-
-        $_user = 'vesta';
-
-        $params = array(
-            'USER' => $_user,
-            'DB' => $_user.'_'.$_s['DB']
-        );
-
-        $result = Vesta::execute(Vesta::V_SUSPEND_DB_BASE, $params);
-
-        if (!$result['status'])
-        {
-            $this->errors[] = array($result['error_code'] => $result['error_message']);
-        }
-
-        return $this->reply($result['status'], $result['data']);
-    }
-
-    /**
-     * unsuspend entry
-     * 
-     * @param Request $request
-     * @return
-     */
-    public function unsuspendExecute($request)
-    {
-        $r = new Request();
-        $_s = $r->getSpell();
-
-        $_user = 'vesta';
-
-        $params = array(
-            'USER' => $_user,
-            'DB' => $_user.'_'.$_s['DB']
-        );
-
-        $result = Vesta::execute(Vesta::V_UNSUSPEND_DB_BASE, $params);
-
-        if (!$result['status']) 
-        {
-            $this->errors[] = array($result['error_code'] => $result['error_message']);
-        }
-
-        return $this->reply($result['status'], $result['data']);
-    }
-
-    /**
-     * Batch suspend entries
-     * 
-     * @param Request $request
-     * @return
-     */
-    public function suspendAllExecute($request)
-    {
-        $r = new Request();
-        $_s = $r->getSpell();
-
-        $_user = 'vesta';
-        $_JOB = $_s['JOB'];
-
-        $params = array(
-            'USER' => $_user
-        );
-
-        $result = Vesta::execute(Vesta::V_SUSPEND_DB_BASES, $params);
-
-        if (!$result['status'])
-        {
-            $this->errors[] = array($result['error_code'] => $result['error_message']);
-        }
-
-        return $this->reply($result['status'], $result['data']);
-    }
-
-    /**
-     * Batch unsuspend entries
-     * 
-     * @param Request $request
-     * @return
-     */
-    public function unsuspendAllExecute($request)
-    {
-        $r = new Request();
-        $_s = $r->getSpell();
-
-        $_user = 'vesta';
-
-        $params = array(
-            'USER' => $_user
-        );
-
-        $result = Vesta::execute(Vesta::V_UNSUSPEND_DB_BASES, $params);
-
-        if (!$result['status'])
-        {
-            $this->errors[] = array($result['error_code'] => $result['error_message']);
-        }
-
-        return $this->reply($result['status'], $result['data']);
-    }
+			if (!$result['status']) {
+				$this->errors[] = array($result['error_code'] => $result['error_message']);
+			}
+		}
     
+        return $this->reply($result['status'], $result['data']);
+    }
+
+    public function massiveSuspendExecute(Request $request)
+    {
+        $user   = $this->getLoggedUser();
+        $_entities = $request->getParameter('entities');
+
+        foreach($_entities as $entity){
+          $result = Vesta::execute(Vesta::V_SUSPEND_DB_BASE, array('USER' => $user['uid'], $entity['DB']));
+        }
+
+        return $this->reply($result['status'], $result['data']);
+    }
+
+    public function massiveUnsuspendExecute(Request $request)
+    {
+        $user   = $this->getLoggedUser();
+        $_entities = $request->getParameter('entities');
+
+        foreach($_entities as $entity){
+            $result = Vesta::execute(Vesta::V_UNSUSPEND_DB_BASE, array('USER' => $user['uid'], $entity['DB']));
+        }
+
+        return $this->reply($result['status'], $result['data']);
+    }
+
+    public function massiveDeleteExecute(Request $request)
+    {
+        $user   = $this->getLoggedUser();
+        $_entities = $request->getParameter('entities');
+
+        foreach($_entities as $entity){
+            $result = Vesta::execute(Vesta::V_DEL_DB_BASE, array('USER' => $user['uid'], $entity['DB']));
+        }
+
+        return $this->reply($result['status'], $result['data']);
+    }
+       
 }

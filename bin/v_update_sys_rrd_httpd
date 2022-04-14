@@ -1,0 +1,103 @@
+#!/bin/bash
+# info: update httpd rrd
+# options: period
+#
+# The function is for updating apache rrd database and graphic.
+
+
+#----------------------------------------------------------#
+#                    Variable&Function                     #
+#----------------------------------------------------------#
+
+# Argument defenition
+update=$1
+period=${1-daily}
+
+# Importing variables
+source $VESTA/conf/vars.conf
+
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Switching on time period
+case $period in
+    daily)   start='-1d'; end='now'; grid='MINUTE:30:HOUR:1:HOUR:4:0:%H:%M';;
+    weekly)  start='-7d'; end='now'; grid='HOUR:8:DAY:1:DAY:1:0:%a %d';;
+    monthly) start='-1m'; end='now'; grid='WEEK:1:WEEK:1:WEEK:1:0:%b %d';;
+    yearly)  start='-1y'; end='now'; grid='MONTH:1:YEAR:1:MONTH:2:2419200:%b';;
+    *) exit $E_RRD ;;
+esac
+
+
+# Checking directory
+if [ ! -d "$V_RRD/web" ]; then
+    mkdir $V_RRD/web
+fi
+
+# Checking database
+if [ ! -e "$V_RRD/web/httpd.rrd" ]; then
+    # Adding database
+    rrdtool create $V_RRD/web/httpd.rrd --step $V_RRD_STEP \
+        DS:A:GAUGE:600:U:U \
+        RRA:AVERAGE:0.5:1:600 \
+        RRA:AVERAGE:0.5:6:700 \
+        RRA:AVERAGE:0.5:24:775 \
+        RRA:AVERAGE:0.5:288:797 \
+        RRA:MAX:0.5:1:600 \
+        RRA:MAX:0.5:6:700 \
+        RRA:MAX:0.5:24:775 \
+        RRA:MAX:0.5:288:797
+fi
+
+# Parsing data
+if [ -z "$update" ]; then
+    server_status=$(wget -qO-  http://localhost:8081/server-status |\
+        grep 'currently being processed'| \
+        cut -f 2 -d '>' |\
+        sed 's/requests currently being processed, //' | \
+        cut -f 1,2 -d ' ')
+    active=$(echo "$server_status"|cut -f 1 -d ' ')
+    idle=$(echo "$server_status"|cut -f 1 -d ' ')
+    a=$((active + idle))
+
+    # Updating rrd database
+    rrdtool update $V_RRD/web/httpd.rrd N:$a
+fi
+
+# Updating rrd graph
+rrdtool graph $V_RRD/web/$period-httpd.png \
+    --imgformat PNG \
+    --height="120" \
+    --width="440" \
+    --start "$start" \
+    --end "$end" \
+    --vertical-label "Connections" \
+    --x-grid "$grid" \
+    -c "BACK#484439" \
+    -c "SHADEA#484439" \
+    -c "SHADEB#484439" \
+    -c "FONT#DDDDDD" \
+    -c "CANVAS#202020" \
+    -c "GRID#666666" \
+    -c "MGRID#AAAAAA" \
+    -c "FRAME#202020" \
+    -c "ARROW#FFFFFF" \
+    DEF:a=$V_RRD/web/httpd.rrd:A:AVERAGE \
+    COMMENT:'\r' \
+    LINE1:a#fefda0:"Connections " \
+    GPRINT:a:'LAST:Current\:''%8.0lf' \
+    GPRINT:a:'MIN:Min\:''%8.0lf' \
+    GPRINT:a:'MAX:Max\:''%8.0lf\j'  >/dev/null 2>/dev/null; result=$?
+
+
+#----------------------------------------------------------#
+#                       Vesta                              #
+#----------------------------------------------------------#
+
+if [ "$result" -ne 0 ]; then
+    exit $E_RRD
+fi
+
+exit

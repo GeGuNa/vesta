@@ -1,22 +1,32 @@
 #!/bin/bash
 # info: adding ssl for domain
+# options: user domain ssl_dir [ssl_home]
+#
+# The function turns on SSL support for a domain. Parameter ssl_dir is a path
+# to directory where 2 or 3 ssl files can be found. Certificate file 
+# domain.tld.crt and its key domain.tld.key  are mandatory. Certificate
+# authority domain.tld.ca file is optional. If home directory  parameter
+# (ssl_home) is not set, https domain uses public_shtml as separate
+# documentroot directory.
+
 
 #----------------------------------------------------------#
 #                    Variable&Function                     #
 #----------------------------------------------------------#
 
 # Argument defenition
-user="$1"
+user=$1
 domain=$(idn -t --quiet -u "$2" )
 domain_idn=$(idn -t --quiet -a "$domain")
-cert="$3"
-tpl_option="${4-single}"
+ssl_dir=$3
+ssl_home=${4-single}
 
 # Importing variables
 source $VESTA/conf/vars.conf
-source $V_FUNC/shared_func.sh
-source $V_FUNC/domain_func.sh
-source $V_FUNC/ip_func.sh
+source $V_CONF/vesta.conf
+source $V_FUNC/shared.func
+source $V_FUNC/domain.func
+source $V_FUNC/ip.func
 
 
 #----------------------------------------------------------#
@@ -24,10 +34,10 @@ source $V_FUNC/ip_func.sh
 #----------------------------------------------------------#
 
 # Checking arg number
-check_args '3' "$#" 'user domain certificate [sslhome]'
+check_args '3' "$#" 'user domain ssl_dir [ssl_home]'
 
 # Checking argument format
-format_validation 'user' 'domain' 'certificate'
+format_validation 'user' 'domain' 'ssl_dir'
 
 # Checking web system is enabled
 is_system_enabled 'web'
@@ -42,62 +52,52 @@ is_user_suspended
 is_web_domain_valid
 
 # Checking domain is not suspened
-is_domain_suspended 'web_domains'
+is_domain_suspended 'web'
 
 # Checking package
 is_package_full 'web_ssl'
 
-# Checking ip ownership
-ip=$(get_web_domain_value '$IP')
-is_sys_ip_owner
-
 # Check ssl is not added
-is_web_domain_key_empty '$SSL_CERT'
+is_web_domain_key_empty '$SSL'
 
 # Checking ssl certificate
 is_web_domain_cert_valid
-
-# Checking template
-templates=$(get_user_value '$WEB_TPL')
-template=$(get_web_domain_value '$TPL')
-is_template_valid 'web'
 
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Defining variables for template replace
-web_ssl_port=$(get_config_value '$WEB_SSL_PORT')
-aliases=$(get_web_domain_value '$ALIAS')
-aliases_idn=$(idn -t --quiet -a "$aliases")
-email="$user@$domain"
-ssl_cert="$V_HOME/$user/conf/$cert.crt"
-ssl_key="$V_HOME/$user/conf/$cert.key"
-case $tpl_option in
-    single) docroot="$V_HOME/$user/domains/$domain/public_shtml" ;;
-    same) docroot="$V_HOME/$user/domains/$domain/public_html" ;;
-    *) check_args '3' "$#" 'user domain certificate [sslhome]'
-esac
-group="$user"
-conf="$V_HOME/$user/conf/shttpd.conf"
-tpl_file="$V_WEBTPL/apache_$template.stpl"
-
-# Checking error log status
-elog=$(get_web_domain_value '$ELOG')
-if [ "$elog" = 'no' ]; then
-    elog=' #'
-else
-    elog=' '
+# Adding certificate to user data directory
+cp -f $ssl_dir/$domain.crt $V_USERS/$user/ssl/$domain.crt
+cp -f $ssl_dir/$domain.key $V_USERS/$user/ssl/$domain.key
+cp -f $ssl_dir/$domain.crt $V_USERS/$user/ssl/$domain.pem
+if [ -e "$ssl_dir/$domain.ca" ]; then
+    cp -f $ssl_dir/$domain.ca $V_USERS/$user/ssl/$domain.ca
+    cat $V_USERS/$user/ssl/$domain.ca >> $V_USERS/$user/ssl/$domain.pem
 fi
 
-# Adding domain to the httpd.conf
+# Parsing domain values
+get_web_domain_values
+conf="$V_HOME/$user/conf/shttpd.conf"
+tpl_file="$V_WEBTPL/apache_$TPL.stpl"
+SSL_HOME="$ssl_home"
+
+# Checking ip ownership
+is_sys_ip_owner
+
+# Preparing domain values for the template substitution
+upd_web_domain_values
+
+# Adding domain to the shttpd.conf
 add_web_config
 
 # Adding certificate to user dir
-if [ ! -e "$ssl_cert" ]; then
-    cp -f $V_USERS/$user/cert/$cert.crt $ssl_cert
-    cp -f $V_USERS/$user/cert/$cert.key $ssl_key
+cp -f $V_USERS/$user/ssl/$domain.crt $V_HOME/$user/conf/ssl.$domain.crt
+cp -f $V_USERS/$user/ssl/$domain.key $V_HOME/$user/conf/ssl.$domain.key
+cp -f $V_USERS/$user/ssl/$domain.pem $V_HOME/$user/conf/ssl.$domain.pem
+if [ -e "$V_USERS/$user/ssl/$domain.ca" ]; then
+    cp -f $V_USERS/$user/ssl/$domain.ca $V_HOME/$user/conf/ssl.$domain.ca
 fi
 
 # Running template trigger
@@ -109,7 +109,22 @@ fi
 main_conf='/etc/httpd/conf.d/vesta.conf'
 main_conf_check=$(grep "$conf" $main_conf )
 if [ -z "$main_conf_check" ]; then
-    echo "Include $conf" >>$main_conf
+    echo "Include $conf" >> $main_conf
+fi
+
+# Checking  nginx
+if [ ! -z "$NGINX" ]; then
+    # Adding domain to the snginx.conf
+    conf="$V_HOME/$user/conf/snginx.conf"
+    tpl_file="$V_WEBTPL/ngingx_vhost_$NGINX.stpl"
+    add_web_config
+
+    # Checking vesta nginx config
+    main_conf='/etc/nginx/conf.d/vesta_users.conf'
+    main_conf_check=$(grep "$conf" $main_conf )
+    if [ -z "$main_conf_check" ]; then
+        echo "include $conf;" >>$main_conf
+    fi
 fi
 
 
@@ -121,11 +136,11 @@ fi
 increase_user_value "$user" '$U_WEB_SSL'
 
 # Adding ssl values
-update_web_domain_value '$SSL_HOME' "$tpl_option"
-update_web_domain_value '$SSL_CERT' "$cert"
+update_web_domain_value '$SSL_HOME' "$SSL_HOME"
+update_web_domain_value '$SSL' 'yes'
 
 # Logging
-log_history "$V_EVENT" "v_del_web_domain_ssl $user $domain"
+log_history "$V_EVENT" "v_delete_web_domain_ssl $user $domain"
 log_event 'system' "$V_EVENT"
 
-exit $OK
+exit

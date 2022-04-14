@@ -1,0 +1,97 @@
+#!/bin/bash
+# info: listing nginx templates
+# options: user [format]
+#
+# The function for obtaining the list of nginx templates available to a user.
+
+
+#----------------------------------------------------------#
+#                    Variable&Function                     #
+#----------------------------------------------------------#
+
+# Argument defenition
+user=$1
+format=${2-shell}
+
+# Importing variables
+source $VESTA/conf/vars.conf
+source $V_FUNC/shared.func
+
+# Json function
+json_list_wtpl() {
+    i='1'       # iterator
+    echo '{'
+
+    # Listing files by mask
+    for template in $(echo "$templates" |sed -e "s/,/\n/g"); do
+        if [ -e "$V_WEBTPL/ngingx_vhost_$template.descr" ]; then
+            descr=$(cat $V_WEBTPL/ngingx_vhost_$template.descr | grep '#'|\
+                sed -e ':a;N;$!ba;s/\n/ /g')
+            # Checking !first line to print bracket
+            if [ $i -ne 1 ]; then
+                echo -e "\t},"
+            fi
+            # Print result
+            echo -e  "\t\"$template\": {"
+            echo -e "\t\t\"DESCR\": \"${descr//# /}\""
+            (( ++i))
+        fi
+    done
+
+    # If there was any output
+    if [ -n "$template" ]; then
+        echo -e "\t}"
+    fi
+    echo '}'
+    }
+
+# Shell function
+shell_list_wtpl() {
+    for template in $(echo "$templates" |sed -e "s/,/\n/g"); do
+        if [ -e "$V_WEBTPL/ngingx_vhost_$template.descr" ]; then
+            tpl_descr=$(cat $V_WEBTPL/ngingx_vhost_$template.descr |grep '#')
+            if [ -z "$nohead" ]; then
+                echo "----------"
+            fi
+            echo "TEMPLATE: $template"
+            echo "DESCRIPTION: ${tpl_descr//# /}"
+        fi
+    done
+}
+
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+# Checking arg number
+check_args '1' "$#" 'user'
+
+# Checking argument format
+format_validation 'user'
+
+# Checking user
+is_user_valid
+
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Get user package package
+templates=$(get_user_value '$WEB_TPL')
+
+# Listing domains
+case $format in
+    json)   json_list_wtpl ;;
+    plain)  nohead=1; shell_list_wtpl ;;
+    shell)  shell_list_wtpl ;;
+    *)      check_args '1' '0' '[format]'
+esac
+
+
+#----------------------------------------------------------#
+#                       Vesta                              #
+#----------------------------------------------------------#
+
+exit

@@ -1,23 +1,28 @@
 #!/bin/bash
-# info: changing dns domain record
+# info: change dns domain record
+# options: user domain id record type value
+#
+# The function for changing DNS record.
+
 
 #----------------------------------------------------------#
 #                    Variable&Function                     #
 #----------------------------------------------------------#
 
 # Argument defenition
-user="$1"
+user=$1
 domain=$(idn -t --quiet -u "$2" )
 domain_idn=$(idn -t --quiet -a "$domain")
-id="$3"
+id=$3
 record=$(idn -t --quiet -u "$4" )
 rtype=$(echo "$5"| tr '[:lower:]' '[:upper:]')
 value=$(idn -t --quiet -u "$6" )
 
 # Importing variables
 source $VESTA/conf/vars.conf
-source $V_FUNC/shared_func.sh
-source $V_FUNC/domain_func.sh
+source $V_CONF/vesta.conf
+source $V_FUNC/shared.func
+source $V_FUNC/domain.func
 
 
 #----------------------------------------------------------#
@@ -53,7 +58,7 @@ is_dns_record_valid
 #----------------------------------------------------------#
 
 # Defining zone path
-zone="$V_USERS/$user/zones/$domain"
+zone="$V_USERS/$user/dns/$domain"
 
 # Deleting old record
 rm_string=$(grep -n "^ID='$id'" $zone|cut -d : -f 1)
@@ -84,4 +89,4 @@ restart_schedule 'dns'
 log_history "$V_EVENT"
 log_event 'system' "$V_EVENT"
 
-exit $OK
+exit

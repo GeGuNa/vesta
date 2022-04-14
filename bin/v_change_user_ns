@@ -1,0 +1,92 @@
+#!/bin/bash
+# info: change user nameservers
+# options: user ns1 ns2 [ns3] [ns4] [ns5] [ns6] [ns7] [ns8]
+#
+# The function for changing default nameservers for speciefic user.
+
+
+#----------------------------------------------------------#
+#                    Variable&Function                     #
+#----------------------------------------------------------#
+
+# Argument defenition
+user=$1
+ns1=$2
+ns2=$3
+ns3=$4
+ns4=$5
+ns5=$6
+ns6=$7
+ns7=$8
+ns8=$9
+
+# Importing variables
+source $VESTA/conf/vars.conf
+source $V_CONF/vesta.conf
+source $V_FUNC/shared.func
+
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+# Checking args
+check_args '3' "$#" 'user ns1 ns2 [ns3] [ns4] [ns5] [ns6] [ns7] [ns8]'
+
+# Checking argument format
+format_validation 'user' 'ns1' 'ns2' 
+if [ ! -z "$ns3" ]; then
+    format_validation 'ns3'
+fi
+
+if [ ! -z "$ns4" ]; then
+    format_validation 'ns4'
+fi
+
+if [ ! -z "$ns5" ]; then
+    format_validation 'ns5'
+fi
+
+if [ ! -z "$ns6" ]; then
+    format_validation 'ns6'
+fi
+
+if [ ! -z "$ns7" ]; then
+    format_validation 'ns7'
+fi
+
+if [ ! -z "$ns8" ]; then
+    format_validation 'ns8'
+fi
+
+# Checking user
+is_user_valid
+
+# Checking user is active
+is_user_suspended
+
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Get old values
+old_ns=$(get_user_value '$NS')
+
+# Merging values
+ns="$ns1,$ns2,$ns3,$ns4,$ns5,$ns6,$ns7,$ns8"
+ns=$(echo "$ns"|sed -e "s/,,//g" -e "s/,$//")
+
+# Changing ns values
+update_user_value "$user" '$NS' "$ns"
+
+
+#----------------------------------------------------------#
+#                       Vesta                              #
+#----------------------------------------------------------#
+
+# Logging
+log_history "$V_EVENT" "$V_SCRIPT $user ${old_ns//,/ }"
+log_event 'system' "$V_EVENT"
+
+exit

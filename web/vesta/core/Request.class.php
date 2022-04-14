@@ -17,7 +17,7 @@ class Request
     protected $get = array();
     protected $global = array();
     protected $_merged = array();
-    protected $_spell = array();
+    //protected $_spell = array();
 
     /**
      *
@@ -40,7 +40,7 @@ class Request
                                      $this->post, 
                                      $this->get, 
                                      $this->global);
-        $this->_spell = json_decode($this->_merged['spell'], true);
+        //$this->_spell = json_decode($this->_merged['spell'], true);
     }
 
     /**
@@ -52,7 +52,12 @@ class Request
      */
     public function getParameter($key, $default=false) 
     {
-      return isset($this->_merged[$key]) ? $this->_merged[$key] : $default;      
+        $param = isset($this->_merged[$key]) ? $this->_merged[$key] : $default;      
+        if ($json = @json_decode($param, true)) {
+            return $json;
+        }
+
+        return $param;
     }
 
     /**
@@ -60,10 +65,10 @@ class Request
      *     
      * @return array
      */
-    public function getSpell() 
+    /*public function getSpell() 
     {
       return $this->_spell;
-    }
+    }*/
 
     /**
      * Check if parameter is set
@@ -89,6 +94,11 @@ class Request
     {
         return true;
     }
+    
+    public function getUserIP()
+    {
+        return $_SERVER['REMOTE_ADDR'];
+    }
 
     /**
      * Dissassemble ajax method
@@ -112,7 +122,7 @@ class Request
             throw new ProtectionException(Message::INVALID_METHOD);
         }
 
-        return array('namespace' => ucfirst($method[0]), 'function' => strtolower($method[1]));
+        return array('namespace' => ($method[0]), 'function' => ($method[1]));
     }
 
 }

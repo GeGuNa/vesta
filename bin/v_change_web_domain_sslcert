@@ -1,20 +1,26 @@
 #!/bin/bash
-# info: changing domain ssl certificate
+# info: change domain ssl certificate
+# options: user domain ssl_dir
+#
+# The function changes SSL domain certificate and the key. If ca file present
+# it will be replaced as well.
+
 
 #----------------------------------------------------------#
 #                    Variable&Function                     #
 #----------------------------------------------------------#
 
 # Argument defenition
-user="$1"
+user=$1
 domain=$(idn -t --quiet -u "$2" )
 domain_idn=$(idn -t --quiet -a "$domain")
-certificate="$3"
+ssl_dir=$3
 
 # Importing variables
 source $VESTA/conf/vars.conf
-source $V_FUNC/shared_func.sh
-source $V_FUNC/domain_func.sh
+source $V_CONF/vesta.conf
+source $V_FUNC/shared.func
+source $V_FUNC/domain.func
 
 
 #----------------------------------------------------------#
@@ -22,10 +28,10 @@ source $V_FUNC/domain_func.sh
 #----------------------------------------------------------#
 
 # Checking arg number
-check_args '3' "$#" 'user domain certificate'
+check_args '3' "$#" 'user domain ssl_dir'
 
 # Checking argument format
-format_validation 'user' 'domain' 'certificate'
+format_validation 'user' 'domain' 'ssl_dir'
 
 # Checking web system is enabled
 is_system_enabled 'web'
@@ -40,10 +46,10 @@ is_user_suspended
 is_web_domain_valid
 
 # Checking domain is not suspened
-is_domain_suspended 'web_domains'
+is_domain_suspended 'web'
 
 # Check SSL is added
-is_web_domain_value_exist '$SSL_CERT'
+is_web_domain_value_exist '$SSL'
 
 # Checking ssl certificate
 is_web_domain_cert_valid
@@ -53,39 +59,27 @@ is_web_domain_cert_valid
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Get template name
-tpl_name=$(get_web_domain_value '$TPL')
-tpl_file="$V_WEBTPL/apache_$tpl_name.stpl"
+# Deleting old certificate
+tmpdir=$(mktemp -p $V_HOME/$user/web/$domain/private -d)
+rm -f $V_HOME/$user/conf/ssl.$domain.*
+mv $V_USERS/$user/ssl/$domain.* $tmpdir
+chown -R $user:$user $tmpdir
 
-# Defininig config
-conf="$V_HOME/$user/conf/shttpd.conf"
+# Adding new certificate to user data directory
+cp -f $ssl_dir/$domain.crt $V_USERS/$user/ssl/$domain.crt
+cp -f $ssl_dir/$domain.key $V_USERS/$user/ssl/$domain.key
+cp -f $ssl_dir/$domain.crt $V_USERS/$user/ssl/$domain.pem
+if [ -e "$ssl_dir/$domain.ca" ]; then
+    cp -f $ssl_dir/$domain.ca $V_USERS/$user/ssl/$domain.ca
+    cat $V_USERS/$user/ssl/$domain.ca >> $V_USERS/$user/ssl/$domain.pem
+fi
 
-# Defining ssl key and certificate
-ssl_cert="$V_HOME/$user/conf/$certificate.crt"
-ssl_key="$V_HOME/$user/conf/$certificate.key"
-
-# Defining search phrase
-search_phrase='SSLCertificateFile'
-
-# Defining replace string
-str_repl="    SSLCertificateFile $ssl_cert"
-
-# Changing sslhome
-change_web_config
-
-# Defining search phrase
-search_phrase='SSLCertificateKeyFile'
-
-# Defining replace string
-str_repl="    SSLCertificateKeyFile $ssl_key"
-
-# Changing sslhome
-change_web_config
-
-# Adding certificate to user dir
-if [ ! -e "$ssl_cert" ]; then
-    cp -f $V_USERS/$user/cert/$certificate.crt $ssl_cert
-    cp -f $V_USERS/$user/cert/$certificate.key $ssl_key
+# Adding new certificate to user dir
+cp -f $V_USERS/$user/ssl/$domain.crt $V_HOME/$user/conf/ssl.$domain.crt
+cp -f $V_USERS/$user/ssl/$domain.key $V_HOME/$user/conf/ssl.$domain.key
+cp -f $V_USERS/$user/ssl/$domain.pem $V_HOME/$user/conf/ssl.$domain.pem
+if [ -e "$V_USERS/$user/ssl/$domain.ca" ]; then
+    cp -f $V_USERS/$user/ssl/$domain.ca $V_HOME/$user/conf/ssl.$domain.ca
 fi
 
 
@@ -93,17 +87,11 @@ fi
 #                       Vesta                              #
 #----------------------------------------------------------#
 
-# Get old sslhome value
-old_ssl_cert=$(get_web_domain_value '$SSL_CERT')
-
-# Adding sslcert in config
-update_web_domain_value '$SSL_CERT' "$certificate"
-
 # Adding task to the vesta pipe
 restart_schedule 'web'
 
 # Logging
-log_history "$V_EVENT" "$V_SCRIPT $user $domain $old_ssl_cert"
+log_history "$V_EVENT" "$V_SCRIPT $user $domain $tmpdir"
 log_event 'system' "$V_EVENT"
 
-exit $OK
+exit

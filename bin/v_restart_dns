@@ -1,0 +1,34 @@
+#!/bin/bash
+# info: restart dns service
+# options: none
+#
+# The function tells BIND service to reload dns zone files.
+
+
+#----------------------------------------------------------#
+#                    Variable&Function                     #
+#----------------------------------------------------------#
+
+# Importing variables
+source /etc/profile.d/vesta.sh
+source $VESTA/conf/vesta.conf
+
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+if [ "$DNS_SYSTEM" = 'bind' ]; then
+    /etc/init.d/named reload >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        #$V_FUNC/report_issue 'sys' 'cron'
+        echo "$E_RESTART_FAILED $V_EVENT"
+    fi
+fi
+
+
+#----------------------------------------------------------#
+#                       Vesta                              #
+#----------------------------------------------------------#
+
+exit

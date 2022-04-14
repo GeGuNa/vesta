@@ -1,0 +1,105 @@
+#!/bin/bash
+# info: update system ip
+# options: [user] [ip_status]
+#
+# The function scans configured ip in the system and register them with vesta
+# internal database. This call is intended for use on vps servers, where ip is
+# set by hypervizor.
+
+
+#----------------------------------------------------------#
+#                    Variable&Function                     #
+#----------------------------------------------------------#
+
+# Argument defenition
+user=${1-vesta}
+ip_status=${2-shared}
+
+# Importing variables
+source $VESTA/conf/vars.conf
+source $V_CONF/vesta.conf    # include for internal func
+source $V_FUNC/shared.func
+source $V_FUNC/ip.func
+source $V_FUNC/domain.func
+
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+# Checking arg number
+check_args '0' "$#" '[user] [ip_status]'
+
+# Checking user
+if [ ! -z "$1" ]; then
+    format_validation 'user'
+    is_user_valid "$user"
+fi
+
+# Checking ip_status
+if [ ! -z "$2" ]; then
+    format_validation 'ip_status'
+fi
+
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Get ip list
+ip_list=$(/sbin/ifconfig |grep 'inet addr:'|cut -f 2 -d :|\
+    cut -f 1 -d ' '| grep -v 127.0.0.1)
+
+# Get vesta registered ip list
+vesta_ip_list=$(ls $V_IPS/)
+
+# Defining config paths
+conf='/etc/httpd/conf.d/vesta.conf'
+nconf='/etc/nginx/conf.d/vesta_ip.conf'
+iconf='/etc/sysconfig/network-scripts/ifcfg'
+rconf='/etc/httpd/conf.d/rpaf.conf'
+
+# Comparing each ip
+for ip in $ip_list; do
+    check_ip=$(echo $vesta_ip_list|grep -w "$ip")
+
+    # Checking ip registered
+    if [ -z "$check_ip" ]; then
+
+        # Parsing additional params
+        iface=$(/sbin/ifconfig|grep -B1 -w "$ip"|head -n 1|cut -f 1 -d ' ')
+        interface=$(echo "$iface" | cut -f 1 -d :)
+        mask=$(/sbin/ifconfig |grep -w "$ip"|awk -F "Mask:" '{print $2}')
+
+        # Adding vesta ip
+        ip_add_vesta
+
+        # Adding namehosting support
+        namehost_ip_support
+
+        # Creating startup script
+        if [ ! -e "$iconf-$iface" ]; then
+            ip_add_startup
+        fi
+    fi
+
+    # NOTE: later we'll make revers comparation
+done
+
+
+#----------------------------------------------------------#
+#                       Vesta                              #
+#----------------------------------------------------------#
+
+# Updating user conf
+increase_user_value "$user" '$IP_OWNED'
+
+# Adding task to the vesta pipe
+if [ "$web_restart" = 'yes' ]; then
+    restart_schedule 'web'
+fi
+
+# Logging
+log_event 'system' "$V_EVENT"
+
+exit

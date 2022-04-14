@@ -1,0 +1,61 @@
+#!/bin/bash
+# info: change user shell
+# options: user shell
+#
+# The function changes system shell of a user. Shell gives abilty to use ssh.
+
+
+#----------------------------------------------------------#
+#                    Variable&Function                     #
+#----------------------------------------------------------#
+
+# Argument defenition
+user=$1
+shell=$2
+
+# Importing variables
+source $VESTA/conf/vars.conf
+source $V_CONF/vesta.conf
+source $V_FUNC/shared.func
+
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+# Checking arg number
+check_args '2' "$#" 'user shell'
+
+# Checking argument format
+format_validation 'user' 'shell'
+
+# Checking user
+is_user_valid
+
+# Checking user is active
+is_user_suspended
+
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Get shell full path
+shell_path=$(/usr/bin/chsh --list-shells | grep -w "$shell" )
+
+# Changing passwd file
+/usr/bin/chsh -s "$shell_path" "$user" >/dev/null 2>&1
+
+
+
+#----------------------------------------------------------#
+#                       Vesta                              #
+#----------------------------------------------------------#
+
+# Changing user shell
+update_user_value "$user" '$SHELL' "$shell"
+
+# Logging
+log_event 'system' "$V_EVENT"
+
+exit

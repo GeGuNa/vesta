@@ -1,0 +1,61 @@
+#!/bin/bash
+# info: list user backups
+# options: user [format]
+#
+# The function for obtainig the list of available user backups.
+
+
+#----------------------------------------------------------#
+#                    Variable&Function                     #
+#----------------------------------------------------------#
+
+# Argument defenition
+user=$1
+format=${2-shell}
+
+# Importing variables
+source $VESTA/conf/vars.conf
+source $V_FUNC/shared.func
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+# Checking args
+check_args '1' "$#" 'user [format]'
+
+# Checking argument format
+format_validation 'user'
+
+# Checking user
+is_user_valid
+
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Checking config
+conf=$V_USERS/$user/backup.conf
+if [ ! -e "$conf" ]; then
+    touch $conf
+fi
+
+# Defining fileds to select
+fields="\$DATE \$TIME \$RUNTIME \$TYPE \$SIZE \$VESTA \$PAM \$WEB \$DNS \$DB"
+fields="$fields \$MAIL \$CRON"
+
+# Listing domains
+case $format in 
+    json)   json_list ;;
+    plain)  nohead=1; shell_list ;;
+    shell)  fields='$DATE $TIME $RUNTIME $TYPE $SIZE'; shell_list |column -t;;
+    *)      check_args '1' '0' '[format]' ;;
+esac
+
+
+#----------------------------------------------------------#
+#                       Vesta                              #
+#----------------------------------------------------------#
+
+exit

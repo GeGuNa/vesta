@@ -1,0 +1,113 @@
+#!/bin/bash
+# info: list user packages
+# options: [format]
+#
+# The function for obtaining the list of available hosting packages.
+
+
+#----------------------------------------------------------#
+#                    Variable&Function                     #
+#----------------------------------------------------------#
+
+# Argument defenition
+format=${1-shell}
+
+# Importing variables
+source $VESTA/conf/vars.conf
+source $V_FUNC/shared.func
+
+# Json function
+json_list_pkgs() {
+    # Print top bracket
+    echo '{'
+
+    fileds_count=$(echo "$fields" | wc -w)
+
+    # Starting main loop
+    for package in $(ls $V_DATA/packages); do
+        PACKAGE=${package/.pkg/}
+        # Assing key=value
+        pkg_data=$(cat $V_DATA/packages/$package)
+        eval $pkg_data
+
+        # Closing bracket if there already was output
+        if [ -n "$data" ]; then
+            echo -e '        },'
+        fi
+        i=1
+        for field in $fields; do
+            eval value=$field
+
+            if [ $i -eq 1 ]; then
+                # Printing parrent
+                (( ++i))
+                echo -e "\t\"$value\": {"
+            else
+                # Printing child
+                if [ $i -lt $fileds_count ]; then
+                    (( ++i))
+                    echo -e "\t\t\"${field//$/}\": \"${value//,/, }\","
+                else
+                    echo -e "\t\t\"${field//$/}\": \"${value//,/, }\""
+                    data=1
+                fi
+            fi
+        done
+    done
+
+    # Closing bracket if there was output
+    if [ -n "$data" ]; then
+        echo -e '        }'
+    fi
+
+    # Printing bottom bracket
+    echo -e '}'
+}
+
+# Shell fnction
+shell_list_pkgs() {
+    # Listing pkg files
+    for package in $(ls $V_DATA/packages); do
+        PACKAGE=${package/.pkg/}
+        # Assign key=value
+        pkg_descr=$(cat $V_DATA/packages/$package)
+        eval $pkg_descr
+
+
+        if [ -z "$nohead" ]; then
+            echo '----------'
+        fi
+
+        for field in $fields; do
+            eval value=$field
+            echo -e "${field//$/}: $value"
+        done
+
+    done
+}
+
+
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Defining fields
+fields='$PACKAGE $WEB_DOMAINS $WEB_SSL $WEB_ALIASES $DATABASES $MAIL_DOMAINS
+    $MAIL_BOXES $MAIL_FORWARDERS $DNS_DOMAINS $DISK_QUOTA $BANDWIDTH $NS
+    $SHELL $BACKUPS $WEB_TPL'
+
+# Listing domains
+case $format in
+    json)   json_list_pkgs ;;
+    plain)  nohead=1; shell_list_pkgs ;;
+    shell)  shell_list_pkgs | column -t ;;
+    *)      check_args '1' '0' '[format]'
+esac
+
+
+#----------------------------------------------------------#
+#                       Vesta                              #
+#----------------------------------------------------------#
+
+exit

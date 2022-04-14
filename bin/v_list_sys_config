@@ -1,0 +1,64 @@
+#!/bin/bash
+# info: list system config
+# options: [format]
+#
+# The function for obtaining the list of system parameters.
+
+
+#----------------------------------------------------------#
+#                    Variable&Function                     #
+#----------------------------------------------------------#
+
+# Argument defenition
+format=${1-shell}
+
+# Importing variables
+source $VESTA/conf/vars.conf
+
+# Json function
+json_list_conf() {
+    lines=$(wc -l $V_CONF/vesta.conf | cut -f 1 -d ' ')
+    i='0'
+    echo -e "{\n\t\"config\": {"
+    for str in $(cat $V_CONF/vesta.conf); do
+        (( ++i))
+        key=${str%%=*}
+        value=${str#*=}
+        value=${value//%spc%/ }
+        if [ "$i" -lt "$lines" ]; then
+            echo -e "\t\t\"$key\": \"${value//\'/}\","
+        else
+            echo -e "\t\t\"$key\": \"${value//\'/}\""
+        fi
+    done
+    echo -e "\t}\n}"
+}
+
+# Shell function
+shell_list_conf() {
+    for str in $(cat $V_CONF/vesta.conf); do
+        key=${str%%=*}
+        value=${str#*=}
+        value=${value//%spc%/ }
+        echo "$key: ${value//\'/}"
+    done
+}
+
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Listing system config
+case $format in 
+    json)   json_list_conf ;;
+    plain)  shell_list_conf ;;
+    shell)  shell_list_conf | column -t ;;
+esac
+
+
+#----------------------------------------------------------#
+#                       Vesta                              #
+#----------------------------------------------------------#
+
+exit

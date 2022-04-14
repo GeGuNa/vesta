@@ -1,0 +1,95 @@
+#!/bin/bash
+# info: delete web domain cgi support
+# options: user domain
+#
+# The function for deleting cgi support (adds -ExecCGI directive into
+# configuration file). It is recommended to apply this function only for a
+# temporary use (for lightening the consequences of DDoS, for example);
+# otherwise it is preferable to use templates.
+
+
+#----------------------------------------------------------#
+#                    Variable&Function                     #
+#----------------------------------------------------------#
+
+# Argument defenition
+user=$1
+domain=$(idn -t --quiet -u "$2" )
+domain_idn=$(idn -t --quiet -a "$domain")
+
+# Importing variables
+source $VESTA/conf/vars.conf
+source $V_CONF/vesta.conf
+source $V_FUNC/shared.func
+source $V_FUNC/domain.func
+
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+# Checking arg number
+check_args '2' "$#" 'user domain'
+
+# Checking argument format
+format_validation 'user' 'domain'
+
+# Checking web system is enabled
+is_system_enabled 'web'
+
+# Checking user
+is_user_valid
+
+# Checking user is active
+is_user_suspended
+
+# Checking domain exist
+is_web_domain_valid
+
+# Checking domain is not suspened
+is_domain_suspended 'web'
+
+# Checking cgi is added
+is_web_domain_value_exist '$CGI'
+
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+get_web_domain_values
+tpl_file="$V_WEBTPL/apache_$TPL.tpl"
+conf="$V_HOME/$user/conf/httpd.conf"
+CGI='no'
+
+# Preparing domain values for the template substitution
+upd_web_domain_values
+
+# Recreating vhost
+del_web_config
+add_web_config
+
+# Checking ssl
+if [ "$SSL" = 'yes' ]; then
+    tpl_file="$V_WEBTPL/apache_$TPL.stpl"
+    conf="$V_HOME/$user/conf/shttpd.conf"
+    del_web_config
+    add_web_config
+fi
+
+
+#----------------------------------------------------------#
+#                       Vesta                              #
+#----------------------------------------------------------#
+
+# Deleting cgi in config
+update_web_domain_value '$CGI' 'no'
+
+# Adding task to the vesta pipe
+restart_schedule 'web'
+
+# Logging
+log_history "$V_EVENT" "v_add_web_domain_cgi $user $domain"
+log_event 'system' "$V_EVENT"
+
+exit
